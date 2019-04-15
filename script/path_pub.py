@@ -46,10 +46,34 @@ class path_pub():
     def MAP_VALID(self, map, i, j):
         return ((i >= 0) and (i < map.size_x) and (j >= 0) and (j < map.size_y))
 
-
+    def MAP_INDEX(self, map, i, j):
+        return (i + (j * map.size_x))
 
     def convert_map(self, map):
+        map_new = map_t()
+        #查找
+        # ROS_ASSERT(MAP_NEW)
+        map_new.size_x = map.info.width
+        map_new.size_y = map.info.height
+        map_new.scale = map.info.resolution
+        map_new.origin_x = map.info.origin.position.x + (map_new.size_x / 2) * map_new.scale
+        map_new.origin_y = map.info.origin.position.y + (map_new.size_y / 2) * map_new.scale
+        for i in range(map_new.size_x * map_new.size_y):
+            if map.data[i] == 0:
+                map_new.cells[i].occ_state = -1
+            elif map.data[i] == 100:
+                map_new.cells[i].occ_state = 1
+            else:
+                map_new.cells[i].occ_state = 0
 
+
+    def map_get_cell(self, ox, oy, oa):
+        i = self.MAP_GXWX(map, ox)
+        j = self.MAP_GYWY(map, oy)
+        if not self.MAP_VALID(map, i, j):
+            return None
+        cell = map.cells + self.MAP_INDEX(map, i, j)
+        return cell
 
     def map_callback(self, msg):
         self.convert_map(msg)
@@ -102,7 +126,23 @@ class path_pub():
             self.last_time = current_time
             rospy.sleep(1)
 
+class map_t():
+    def __init__(self):
+        self.size_x = 0
+        self.size_y = 0
+        self.origin_x = 0
+        self.origin_y = 0
+        self.scale = 0
+        self.cells = list(map_cell())
+        self.max_occ_dist = 0
 
+
+class map_cell_t():
+    def __init__(self):
+        #Occupancy state (-1 = free, 0 = unknown, +1 = occ)
+        self.occ_state = 0
+        #Distance to the nearest occupied cell
+        self.occ_dist = 0
 
 
 if __name__ == '__main__':
