@@ -37,43 +37,46 @@ class path_pub():
         self.if_start_find_path = True
         print "goalgoalgoal"
 
-    def MAP_GXWX(self, map, x):
-        return (floor((x - map.origin_x) / map.scale + .5) + map.size_x / 2)
+    # def MAP_GXWX(self, map, x):
+    #     return (floor((x - map.origin_x) / map.scale + .5) + map.size_x / 2)
+    #
+    # def MAP_GYWY(self, map, y):
+    #     return (floor((y - map.origin_y) / map.scale + .5) + map.size_y / 2)
+    #
+    # def MAP_VALID(self, map, i, j):
+    #     return ((i >= 0) and (i < map.size_x) and (j >= 0) and (j < map.size_y))
+    #
+    # def MAP_INDEX(self, map, i, j):
+    #     return (i + (j * map.size_x))
+    #
+    # def convert_map(self, map):
+    #     map_new = map_t()
+    #     #查找
+    #     # ROS_ASSERT(MAP_NEW)
+    #     map_new.size_x = map.info.width
+    #     map_new.size_y = map.info.height
+    #     map_new.scale = map.info.resolution
+    #     map_new.origin_x = map.info.origin.position.x + (map_new.size_x / 2) * map_new.scale
+    #     map_new.origin_y = map.info.origin.position.y + (map_new.size_y / 2) * map_new.scale
+    #     for i in range(map_new.size_x * map_new.size_y):
+    #         if map.data[i] == 0:
+    #             map_new.cells[i].occ_state = -1
+    #         elif map.data[i] == 100:
+    #             map_new.cells[i].occ_state = 1
+    #         else:
+    #             map_new.cells[i].occ_state = 0
+    #
+    #
+    # def map_get_cell(self, ox, oy, oa):
+    #     i = self.MAP_GXWX(map, ox)
+    #     j = self.MAP_GYWY(map, oy)
+    #     if not self.MAP_VALID(map, i, j):
+    #         return None
+    #     cell = map.cells + self.MAP_INDEX(map, i, j)
+    #     return cell
 
-    def MAP_GYWY(self, map, y):
-        return (floor((y - map.origin_y) / map.scale + .5) + map.size_y / 2)
-
-    def MAP_VALID(self, map, i, j):
-        return ((i >= 0) and (i < map.size_x) and (j >= 0) and (j < map.size_y))
-
-    def MAP_INDEX(self, map, i, j):
-        return (i + (j * map.size_x))
-
-    def convert_map(self, map):
-        map_new = map_t()
-        #查找
-        # ROS_ASSERT(MAP_NEW)
-        map_new.size_x = map.info.width
-        map_new.size_y = map.info.height
-        map_new.scale = map.info.resolution
-        map_new.origin_x = map.info.origin.position.x + (map_new.size_x / 2) * map_new.scale
-        map_new.origin_y = map.info.origin.position.y + (map_new.size_y / 2) * map_new.scale
-        for i in range(map_new.size_x * map_new.size_y):
-            if map.data[i] == 0:
-                map_new.cells[i].occ_state = -1
-            elif map.data[i] == 100:
-                map_new.cells[i].occ_state = 1
-            else:
-                map_new.cells[i].occ_state = 0
-
-
-    def map_get_cell(self, ox, oy, oa):
-        i = self.MAP_GXWX(map, ox)
-        j = self.MAP_GYWY(map, oy)
-        if not self.MAP_VALID(map, i, j):
-            return None
-        cell = map.cells + self.MAP_INDEX(map, i, j)
-        return cell
+    def mapToWorld(self, mx, my, wx, wy):
+        print "mapToWorld"
 
     def map_callback(self, msg):
         self.convert_map(msg)
