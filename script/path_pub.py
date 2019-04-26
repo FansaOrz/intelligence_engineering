@@ -2,6 +2,7 @@
 # -*- encoding: UTF-8 -*-
 import rospy
 import numpy as np
+from scipy import interpolate
 import A_star_path_finding as A_star
 from nav_msgs.msg import Path, OccupancyGrid
 from geometry_msgs.msg import PoseStamped, Quaternion, PoseWithCovarianceStamped
@@ -11,6 +12,7 @@ class path_pub():
     def __init__(self):
         rospy.init_node("path_pub")
         self.path_pub = rospy.Publisher("/path_my_A_star", Path, queue_size=15)
+        self.path_pub_changed = rospy.Publisher("/path_my_A_star_changed", Path, queue_size=15)
 
         # 关于地图的一些变量
         self.origin_x = 0
@@ -21,13 +23,14 @@ class path_pub():
         # self.map_test_pub = rospy.Publisher("/map_test", OccupancyGrid, queue_size=15)
         self.map_sub = rospy.Subscriber("/map", OccupancyGrid, self.map_callback)
         self.current_path = Path()
+        self.current_path_changed = Path()
         rospy.sleep(1)
         # 起始点和目标点
         self.start_map_point = []
         self.goal_map_point = []
         # 地图上的路径
         self.path_map = []
-
+        self.path_world = []
         # 是否要寻找路径的开关
         self.if_start_find_path = False
         self.goal_pose = PoseStamped()
@@ -127,14 +130,19 @@ class path_pub():
 
     def publisher_path(self):
         time = 1
+        y1 = []
+        y2 = []
         # rospy.sleep(10)
         for i in range(len(self.path_map)):
             current_time = rospy.get_rostime()
             # print
             # print "current_time", current_time
-            rospy.sleep(.1)
+            # rospy.sleep(.05)
             current_pose = PoseStamped()
             current_pose.pose.position.x, current_pose.pose.position.y= self.mapToWorld(self.path_map[i][1], self.path_map[i][0])
+            # self.path_world.append(self.mapToWorld(self.path_map[i][1], self.path_map[i][0]))
+            y1.append(self.mapToWorld(self.path_map[i][1], self.path_map[i][0])[0])
+            y2.append(self.mapToWorld(self.path_map[i][1], self.path_map[i][0])[1])
             current_pose.pose.position.z = 0.0
             current_pose.pose.orientation.x = 0.0
             current_pose.pose.orientation.y = 0.0
@@ -147,6 +155,40 @@ class path_pub():
             self.path_pub.publish(self.current_path)
             self.last_time = current_time
             # rospy.sleep(1)
+
+
+        # 通过差值做平滑处理
+        length = len(self.path_map)
+        x = np.array([num for num in range(length)])
+        print "-------------x:",x
+        print "-------------y1:",y1
+        xnew = np.arange(0,length - 1, 0.1)
+        print "-------------xnew:",xnew
+        func1 = interpolate.interp1d(x, y1, kind='cubic')
+        func2 = interpolate.interp1d(x, y2, kind='cubic')
+        ynew1 = func1(xnew)
+        ynew2 = func2(xnew)
+        for i in range(len(ynew1)):
+            current_time = rospy.get_rostime()
+            # print
+            # print "current_time", current_time
+            # rospy.sleep(.01)
+            current_pose = PoseStamped()
+            current_pose.pose.position.x = ynew1[i]
+            current_pose.pose.position.y = ynew2[i]
+            current_pose.pose.position.z = 0.0
+            current_pose.pose.orientation.x = 0.0
+            current_pose.pose.orientation.y = 0.0
+            current_pose.pose.orientation.z = 0.0
+            current_pose.pose.orientation.w = 1.0
+            time += 1
+            self.current_path_changed.header.stamp = current_time
+            self.current_path_changed.header.frame_id = "odom"
+            self.current_path_changed.poses.append(current_pose)
+            self.path_pub_changed.publish(self.current_path_changed)
+            self.last_time = current_time
+            # rospy.sleep(1)
+        # print ynew
 
 
 
