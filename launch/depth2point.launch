@@ -1,0 +1,11 @@
+<launch>
+
+<!-- converts depth image to a point cloud -->
+  <node pkg="depth_image_proc" type="point_cloud_xyz" name="depth_to_xyz" >
+     <remap from="/image_rect" to="/pepper_robot/naoqi_driver/camera/depth/image_raw" />
+     <remap from="/camera_info" to="/pepper_robot/naoqi_driver/camera/depth/camera_info" />
+    <remap from="/points" to="/points" />
+  </node>
+</launch>
+
+

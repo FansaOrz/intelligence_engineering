@@ -1,0 +1,17 @@
+<launch>
+    <node pkg="depthimage_to_laserscan" type="depthimage_to_laserscan" name="depthimage_to_laserscan">
+      <!-- Pixel rows to use to generate the laserscan. For each column, the scan will
+           return the minimum value for those pixels centered vertically in the image. -->
+      <param name="scan_height" value="50"/>
+      <param name="output_frame_id" value="camera_depth_frame"/>
+      <param name="range_min" value="0.45"/>
+      <remap from="image" to="/water_astra_rgbd/depth/image_raw"/>
+      <remap from="scan" to="/myscan"/>
+
+      <!-- Somehow topics here get prefixed by "$(arg camera)" when not inside an app namespace,
+           so in this case "$(arg scan_topic)" must provide an absolute topic name (issue #88).
+           Probably is a bug in the nodelet manager: https://github.com/ros/nodelet_core/issues/7 -->
+      <remap from="/camera/image" to="/water_astra_rgbd/depth/image_raw"/>
+      <remap from="/camera/scan" to="/myscan"/>
+    </node>
+</launch>
