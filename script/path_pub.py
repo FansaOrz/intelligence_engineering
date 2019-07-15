@@ -5,6 +5,7 @@ import time
 import numpy as np
 from scipy import interpolate
 import A_star_path_finding as A_star
+import Dijkstra_path_finding as Dij
 from nav_msgs.msg import Path, OccupancyGrid
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 
@@ -50,18 +51,11 @@ class path_pub():
 
     def start_find_path(self):
         if self.if_start_find_path:
+
             print ('\033[32m[I] : Start find path with A* \033[0m')
-            temp = A_star.find_path(self.map, self.start_map_point, self.goal_map_point)
-
-
-
-            self.path_map, map_temp = temp.start_find()
-
-            self.map_msg.data = tuple(map_temp)
-            time.sleep(3)
+            self.path_map, open_list_index = self.Dij_find_path.start_find(self.start_map_point, self.goal_map_point)
+            self.update_map(open_list_index)
             self.map_test_pub.publish(self.map_msg)
-            print "yyyyyyyyyyyyyy"
-
 
             # print self.path_map
             self.publisher_path()
@@ -69,6 +63,17 @@ class path_pub():
             rospy.sleep(1)
             print ('\033[33m[W] : Please set goal pose\033[0m')
             return
+
+    def update_map(self, index):
+        temp = list(self.map_msg.data)
+        for i in range(len(index)):
+            temp_x = index[i][0][0] - 1
+            temp_y = index[i][1][0] - 1
+            temp[temp_x * self.width + temp_y] = 50
+        self.map_msg.data = tuple(temp)
+        time.sleep(3)
+        self.map_test_pub.publish(self.map_msg)
+        print "-----show_changed_map-----"
 
     # 回调函数系列
     def goal_pose_callback(self, msg):
@@ -100,48 +105,31 @@ class path_pub():
         mx = (int)((wx - self.origin_x) / self.resolution)
         my = (int)((wy - self.origin_y) / self.resolution)
         if mx < self.width and my < self.height:
-            # print ">>>>>>>>>>>"
             return [my, mx]
         return [-1, -1]
 
     def map_callback(self, msg):
-        # self.convert_map(msg)
         print msg.header
         print "------"
         print msg.info
         print "------"
-        print len(msg.data)
+
         # 初始化map里的参数值
         self.origin_x = msg.info.origin.position.x
         self.origin_y = msg.info.origin.position.y
         self.resolution = msg.info.resolution
         self.width = msg.info.width
         self.height = msg.info.height
-        print "-------",self.width
+        print "-----width------",self.width
         # # 把map里的消息存下来
         self.map_msg = msg
         raw = np.array(msg.data, dtype=np.int8)
-        # print raw.shape
         self.map = raw.reshape((self.height, self.width))
-        print type(self.map)
-        # self.map_data_pub = raw_new.flatten()
-        # print len(list(self.map_data_pub))
-        # self.map_data_pub = list(self.map_data_pub)
-        # # print self.map_data_pub
-        # rospy.sleep(1)
-        # self.map_msg.data = self.map_data_pub
-        # temp = list(self.map_msg.data)
-        # for i in range(len(temp) / 2):
-        #     temp[i] = 10
-        # self.map_msg.data = tuple(temp)
-        # self.map_test_pub.publish(self.map_msg)
+        self.Dij_find_path = A_star.find_path(self.map, robot_size=0)
         self.map_sub.unregister()
 
     def init_pose_callback(self, msg):
-        # print "===========get initial pose================"
         self.init_pose = msg
-        # print msg
-        # print "----------------worldtomap------------------"
         self.start_map_point =  self.WorldTomap(msg.pose.pose.position.x, msg.pose.pose.position.y)
         print "----------------start point----------------",self.start_map_point
         print "value = ", self.map[self.start_map_point[0]][self.start_map_point[1]]
