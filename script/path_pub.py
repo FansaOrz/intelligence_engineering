@@ -1,18 +1,21 @@
 #! /usr/bin/env python
 # -*- encoding: UTF-8 -*-
 import rospy
+import time
 import numpy as np
 from scipy import interpolate
 import A_star_path_finding as A_star
 from nav_msgs.msg import Path, OccupancyGrid
-from geometry_msgs.msg import PoseStamped, Quaternion, PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 
 
 class path_pub():
     def __init__(self):
         rospy.init_node("path_pub")
+        self.start_time = self.end_time = 0
         self.path_pub = rospy.Publisher("/path_my_A_star", Path, queue_size=15)
         self.path_pub_changed = rospy.Publisher("/path_my_A_star_changed", Path, queue_size=15)
+        self.robot_radius = 0.3
 
         # 关于地图的一些变量
         self.origin_x = 0
@@ -20,7 +23,7 @@ class path_pub():
         self.resolution = 0
         self.width = 0
         self.height = 0
-        # self.map_test_pub = rospy.Publisher("/map_test", OccupancyGrid, queue_size=15)
+        self.map_test_pub = rospy.Publisher("/map_test", OccupancyGrid, queue_size=15)
         self.map_sub = rospy.Subscriber("/map", OccupancyGrid, self.map_callback)
         self.current_path = Path()
         self.current_path_changed = Path()
@@ -42,16 +45,29 @@ class path_pub():
         rospy.Rate(1)
         rospy.spin()
 
+    def map_inflation(self):
+        print "inflation"
+
     def start_find_path(self):
         if self.if_start_find_path:
-            print ('\033[0;32m[I] : Start find path with A* \033[0m')
+            print ('\033[32m[I] : Start find path with A* \033[0m')
             temp = A_star.find_path(self.map, self.start_map_point, self.goal_map_point)
-            self.path_map = temp.start_find()
-            print self.path_map
+
+
+
+            self.path_map, map_temp = temp.start_find()
+
+            self.map_msg.data = tuple(map_temp)
+            time.sleep(3)
+            self.map_test_pub.publish(self.map_msg)
+            print "yyyyyyyyyyyyyy"
+
+
+            # print self.path_map
             self.publisher_path()
         else:
             rospy.sleep(1)
-            print ('\033[0;33m[W] : Please set goal pose\033[0m')
+            print ('\033[33m[W] : Please set goal pose\033[0m')
             return
 
     # 回调函数系列
@@ -63,7 +79,7 @@ class path_pub():
         self.goal_map_point =  self.WorldTomap(msg.pose.position.x, msg.pose.position.y)
         print "-----------------goal point---------------",self.goal_map_point
         if self.goal_map_point == [-1, -1]:
-            print "\033[0;30m[Kamerider E] : Please set the valid goal point\033[0m"
+            print "\033[30m[E] : Please set the valid goal point\033[0m"
             return
         else:
             self.start_find_path()
@@ -103,7 +119,7 @@ class path_pub():
         self.height = msg.info.height
         print "-------",self.width
         # # 把map里的消息存下来
-        # self.map_msg = msg
+        self.map_msg = msg
         raw = np.array(msg.data, dtype=np.int8)
         # print raw.shape
         self.map = raw.reshape((self.height, self.width))
@@ -114,6 +130,10 @@ class path_pub():
         # # print self.map_data_pub
         # rospy.sleep(1)
         # self.map_msg.data = self.map_data_pub
+        # temp = list(self.map_msg.data)
+        # for i in range(len(temp) / 2):
+        #     temp[i] = 10
+        # self.map_msg.data = tuple(temp)
         # self.map_test_pub.publish(self.map_msg)
         self.map_sub.unregister()
 
@@ -150,7 +170,7 @@ class path_pub():
             current_pose.pose.orientation.w = 1.0
             time += 1
             self.current_path.header.stamp = current_time
-            self.current_path.header.frame_id = "odom"
+            self.current_path.header.frame_id = "map"
             self.current_path.poses.append(current_pose)
             self.path_pub.publish(self.current_path)
             self.last_time = current_time
@@ -160,10 +180,10 @@ class path_pub():
         # 通过差值做平滑处理
         length = len(self.path_map)
         x = np.array([num for num in range(length)])
-        print "-------------x:",x
-        print "-------------y1:",y1
+        # print "-------------x:",x
+        # print "-------------y1:",y1
         xnew = np.arange(0,length - 1, 0.1)
-        print "-------------xnew:",xnew
+        # print "-------------xnew:",xnew
         func1 = interpolate.interp1d(x, y1, kind='cubic')
         func2 = interpolate.interp1d(x, y2, kind='cubic')
         ynew1 = func1(xnew)
@@ -183,33 +203,11 @@ class path_pub():
             current_pose.pose.orientation.w = 1.0
             time += 1
             self.current_path_changed.header.stamp = current_time
-            self.current_path_changed.header.frame_id = "odom"
+            self.current_path_changed.header.frame_id = "map"
             self.current_path_changed.poses.append(current_pose)
             self.path_pub_changed.publish(self.current_path_changed)
             self.last_time = current_time
-            # rospy.sleep(1)
-        # print ynew
-
-
-
-
-class map_t():
-    def __init__(self):
-        self.size_x = 0
-        self.size_y = 0
-        self.origin_x = 0
-        self.origin_y = 0
-        self.scale = 0
-        self.cells = list(map_cell())
-        self.max_occ_dist = 0
-
-
-class map_cell_t():
-    def __init__(self):
-        #Occupancy state (-1 = free, 0 = unknown, +1 = occ)
-        self.occ_state = 0
-        #Distance to the nearest occupied cell
-        self.occ_dist = 0
+            rospy.sleep(.01)
 
 
 if __name__ == '__main__':

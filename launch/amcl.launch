@@ -1,11 +1,9 @@
 <launch>
 
+
   <!-- Map server -->
-  <arg name="map_file" default="/home/fansa/Src/intelligence_engineering/catkin_ws/src/water/maps/final.yaml"/>
+  <arg name="map_file" default="/home/fansa/Src/lab/catkin_ws/src/water/maps/lab.yaml"/>
   <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
-  
-  <!--pub_cmd node-->
-  <node name="pub_cmd" pkg="water" type="pub_cmd.py" />
   
   <!-- AMCL -->
   <arg name="custom_amcl_launch_file" default="$(find water)/launch/includes/amcl/astra_amcl.launch.xml"/>
@@ -25,7 +23,7 @@
   </include>
 
   <!-- rviz-->
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find water)/rviz/cfg.rviz"/>
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find water)/rviz/navigation.rviz"/>
 
 </launch>
 

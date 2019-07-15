@@ -9,7 +9,7 @@ import tf
 from copy import deepcopy
 from tf import transformations
 from math import pi
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, PoseStamped
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import OccupancyGrid, MapMetaData
 import thread
@@ -51,6 +51,9 @@ class Scan_Reg():
         self.init_R = [[1,0,0],[0,1,0],[0,0,1]]
         # 降采样参数
         self.down_sample = 1
+        # current pose的齐次矩阵
+        self.pose_T = np.matrix([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]])
+
         # scan采样步长
         self.scan_step = None
         # 计数、接受scan多少次了
@@ -60,6 +63,7 @@ class Scan_Reg():
         self.start_map_pub()
         # self.start_cal_map()
         print self.current_pose
+        # self.Scan_cb()
         rospy.spin()
 
     # 根据高度和宽度初始化地图，使每个点都是-1
@@ -87,11 +91,10 @@ class Scan_Reg():
     def tf_pub(self, arg):
         rate = rospy.Rate(10.0)
         while not rospy.is_shutdown():
-            # print "-------"
             self.br.sendTransform((self.current_pose.position.x, self.current_pose.position.y, self.current_pose.position.z),
                               (self.current_pose.orientation.x, self.current_pose.orientation.y, self.current_pose.orientation.z, self.current_pose.orientation.w),
                               rospy.Time.now(),
-                              "camera_link",
+                              "laser",
                               "map")
             rate.sleep()
 
@@ -116,41 +119,49 @@ class Scan_Reg():
                 theta_i = ((i + 1) * self.angle_increment + self.angle_min)
                 y_i = math.sin(theta_i) * self.Points[i]
                 x_i = math.cos(theta_i) * self.Points[i]
-                # theta_i -= self.angle_max
-                mix, miy = self.WorldTomap(self.current_pose.position.x + x_i, self.current_pose.position.y + y_i)
-                # print "-------------"
+                pose = np.matrix([[x_i],[y_i],[0]])
+                # print "=============================="
+                # print pose
+                # print self.pose_T[0:3, 0:3]
+                R = self.pose_T[0:3, 0:3].T
+                # print R
+                t = R*self.pose_T[0:3, 3]
+                pose_map =R * pose - t
+                # print "-------"
+                # print pose_map
+
+                mix, miy = self.WorldTomap(pose_map[0,0], pose_map[1,0])
             else:
                 theta_i = self.angle_max - ((i + 1) * self.angle_increment)
                 y_i = math.sin(theta_i) * self.Points[i]
                 x_i = math.cos(theta_i) * self.Points[i]
-                mix, miy = self.WorldTomap( self.current_pose.position.x + x_i, self.current_pose.position.y - y_i)
-                # print "+++++++"
-            # print self.current_pose.position.x + x_i, self.current_pose.position.y + y_i
-            # print theta_i
-            self.map.data[mix * 500 + miy] = 100
 
-            # print i
-        print "add to map"
+
+                pose = np.matrix([[x_i],[y_i],[0]])
+                # print "=============================="
+                # print pose
+                R = self.pose_T[0:3, 0:3].T
+                t = R*self.pose_T[0:3, 3]
+                pose_map =R * pose + t
+                # print "-------"
+                # print pose_map
+
+
+                mix, miy = self.WorldTomap( pose_map[0,0], -pose_map[1,0])
+            self.map.data[mix * 500 + miy] = 100
 
     # 世界坐标系转地图坐标系
     def WorldTomap(self, wx, wy):
-        # 返回-1，-1就是有问题
-        # print wx, wy
-        # print self.origin_x, self.origin_y
         if wx < self.origin_x or wy < self.origin_y:
-            # print "<<<<<<<"
             return [-1, -1]
         mx = (int)((wx - self.origin_x) / self.resolution)
         my = (int)((wy - self.origin_y) / self.resolution)
         if mx < self.width and my < self.height:
-            # print ">>>>>>>>>>>"
             return [my, mx]
         return [-1, -1]
 
     def register_scan(self, points, step):
         for i in range(0, len(points), step):
-            # print i
-            # print step
             if points[i] < self.range_min or points[i] > self.range_max or math.isnan(points[i]):
                 continue
             if i >= len(points) / 2:
@@ -160,16 +171,11 @@ class Scan_Reg():
             y_i = math.sin(theta_i) * points[i]
             x_i = math.cos(theta_i) * points[i]
             self.scan_new.append([x_i, y_i])
-            # print "------len", len(self.scan_new)
-        # print self.scan_new
         self.kd_new = KDTree(self.scan_new)
 
-        # 初始化两个scan
-        # self.scan_old = self.scan_new
 
     # SVD函数
     def SVD_cal_R_t(self):
-        # print "SVD"
         ave_p_x = 0
         ave_p_y = 0
         ave_q_x = 0
@@ -179,36 +185,30 @@ class Scan_Reg():
             ave_p_y += self.scan_old[i][1]
             ave_q_x += self.scan_new[i][0]
             ave_q_y += self.scan_new[i][1]
-        ave_p = [[ave_p_x / len(self.scan_old)], [ave_p_y / len(self.scan_old)], [0]]
-        ave_q = [[ave_q_x / len(self.scan_old)], [ave_q_y / len(self.scan_old)], [0]]
-        Y = X = []
+        ave_p = [[float(ave_p_x) / len(self.scan_old)], [float(ave_p_y) / len(self.scan_old)], [0]]
+        ave_q = [[float(ave_q_x) / len(self.scan_old)], [float(ave_q_y) / len(self.scan_old)], [0]]
+        Y = []
+        X = []
         for i in range(len(self.scan_old)):
             yi = [self.scan_new[i][0] - ave_q[0][0], self.scan_new[i][1] - ave_q[1][0], 0]
             xi = [self.scan_old[i][0] - ave_p[0][0], self.scan_old[i][1] - ave_p[1][0], 0]
             Y.append(yi)
             X.append(xi)
-        # Y = np.array(Y)
         Y = np.mat(Y)
-        # X = np.array(X)
         X = np.mat(X)
         X = np.transpose(X)
-        # print "-------------"
-        # print X
-        # print "-------------"
-        # print Y
-        # print "-------------"
-        # print X*Y
         u, s, v = np.linalg.svd(X*Y)
-        # print len(ave_p)
-        # print len(ave_q)
         R = np.transpose(v)*np.transpose(u)
-        # print R.shape
         t = ave_q - R*ave_p
-        print "=====================R======================="
-        print R
-        print "=====================t======================="
-        print t
         return R, t
+
+    def to_T(self, R, t):
+        R = np.matrix(R)
+        t = np.matrix(t)
+        T = np.c_[R,t]
+        zer = np.matrix([0,0,0,0])
+        T = np.r_[T, zer]
+        return T
 
     def Rotation_to_quaternion(self, R):
         # print R[0,0]
@@ -234,7 +234,7 @@ class Scan_Reg():
             # 记录这10个点的世界坐标
             self.register_scan(msg.ranges, self.scan_step)
             self.scan_old = self.scan_new
-            self.start_cal_map()
+            # self.start_cal_map()
             return
         # 计数一次
         self.scan_num += 1
@@ -242,28 +242,43 @@ class Scan_Reg():
         self.scan_new = []
         self.register_scan(msg.ranges, self.scan_step)
         self.scan_new = []
-        # TODO 检查old和new顺序是不是一样的
-        for i in range(len(self.scan_old)):
-            self.scan_new.append(self.kd_new.search_nn(self.scan_old[i])[0].data)
-        # 清空kd树
+        total_T = np.matrix([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]])
+        # print "----------------------new---------------------------"
+        for i in range(5):
+            self.scan_new = []
+            max_dis = 0
+            min_dis = 10
+            for ij in range(len(self.scan_old)):
+                temp_new = self.kd_new.search_nn(self.scan_old[ij])[0].data
+                dis = math.sqrt((self.scan_old[ij][0] - temp_new[0])*(self.scan_old[ij][0] - temp_new[0]) +
+                                (self.scan_old[ij][1] - temp_new[1])*(self.scan_old[ij][1] - temp_new[1]))
+                if dis > max_dis:
+                    max_dis = dis
+                if dis < min_dis:
+                    min_dis = dis
+                self.scan_new.append(temp_new)
+            # 利用SVD计算R和t
+            R, t = self.SVD_cal_R_t()
+            # print "-------------------------"
+            # print np.linalg.det(R)
+            temp_T = self.to_T(R,t)
+            # print temp_T
+            total_T = temp_T * total_T
+            # print "--------------------total_T---------------------"
+            # print total_T
+            for ik in range(len(self.scan_old)):
+                temp = [[self.scan_old[ik][0]], [self.scan_old[ik][1]], [0]]
+                X_ = R*temp + t
+                self.scan_old[ik][0] = X_[0,0]
+                self.scan_old[ik][1] = X_[1,0]
         self.kd_new = None
-        # print "---------------len", len(self.scan_new)
-        # print "---------------len", len(self.scan_old)
-        # print "-------"
-        # print self.scan_old
-        # print "-------"
-        # print self.scan_new
-        # print "-------"
-        # 利用SVD计算R和t
-        R, t = self.SVD_cal_R_t()
+
+        self.pose_T = total_T * self.pose_T
         # 更新currentpose
-        self.current_pose.position.x += t[0][0]
-        self.current_pose.position.y += t[1][0]
-        # self.current_pose.position.x += t[0][0]
-        # print transformations.translation_from_matrix([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-        # transformations.quaternion_from_euler()
-        self.init_R = R * self.init_R
-        print self.init_R.shape
+        # print self.pose_T
+        self.current_pose.position.x = self.pose_T[0, 3]
+        self.current_pose.position.y = self.pose_T[1, 3]
+        self.init_R = self.pose_T[0:3, 0:3]
         x,y,z,w = self.Rotation_to_quaternion(self.init_R)
         self.current_pose.orientation.x = x
         self.current_pose.orientation.y = y
@@ -271,9 +286,7 @@ class Scan_Reg():
         self.current_pose.orientation.w = w
         if self.scan_num == 10:
             self.scan_num = 0
-            self.cal_map(msg.ranges)
-
-    # def split_and_merge(self, msg):
+            self.start_cal_map()
 
 def max_heapreplace(heap, new_node, key=lambda x: x[1]):
     heap[0] = new_node
@@ -319,13 +332,13 @@ def partition_sort(arr, k, key=lambda x: x):
             arr[j] = arr[i]
             j -= 1
         arr[i] = pivot
-
         if i == k:
             return
         elif i < k:
             start = i + 1
         else:
             end = i - 1
+
 
 class KDNode(object):
     def __init__(self, data=None, label=None, left=None, right=None, axis=None, parent=None):

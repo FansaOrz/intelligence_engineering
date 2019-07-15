@@ -1,0 +1,12 @@
+<launch>
+
+  <!--底盘驱动-->
+  <include file="$(find autolabor_pro1_driver)/launch/driver.launch"/>
+
+
+  <!--激光传感器-->
+  <include file="$(find velodyne_pointcloud)/launch/VLP16_points.launch"/>
+
+
+</launch>
+

@@ -7,6 +7,7 @@ G代表：从起点移动到指定方格的移动代价
 H代表：从指定的方格移动到终点的估算成本（采用街区距离，只能上下左右走）
 
 '''
+import datetime
 import numpy as np
 import time
 
@@ -18,7 +19,8 @@ class find_path():
         # 2代表在open表中 3代表在close表中
         self.state_map = np.zeros([len(map) + 2, len(map[0]) + 2])
         # print self.map
-
+        # 记录一共遍历了多少个节点
+        self.num_total = 0
         self.start = start
         self.start[0] += 1
         self.start[1] += 1
@@ -40,6 +42,7 @@ class find_path():
         return x
 
     def start_find(self):
+        start_time = datetime.datetime.now()
         #第一次操作，把起点的周围的点指向起点，起点和周围的点加到open list,
         # print "-----start point-----",self.start
         if self.map[self.start[0]][self.start[1]] != 0:
@@ -72,7 +75,11 @@ class find_path():
             # 加到close list
             self.append_close(current_node)
             self.open_list.remove(current_node)
-        return self.path
+        end_time = datetime.datetime.now()
+        print "time========================", (end_time - start_time)
+        print end_time
+        print "total_num=====================", self.num_total
+        return self.path, self.map
 
     # 最后找到终点，把最短路径append到path里
     def append_path(self, node):
@@ -114,6 +121,9 @@ class find_path():
         # print "+++++", self.map
         if self.map[coordinate[0]][coordinate[1] - 1] == 0 \
                 and self.state_map[coordinate[0]][coordinate[1] - 1] != 3:
+            self.map[coordinate[0]][coordinate[1] - 1] = 70
+            # 记录遍历的节点个数
+            self.num_total += 1
             temp = map_node()
             # 计算G和H代价
             temp.cost_g = 10 + cost_g
@@ -138,6 +148,9 @@ class find_path():
         #左上:如果是可以走的点 并且不在openlist和closelist中
         if self.map[coordinate[0] - 1][coordinate[1] - 1] == 0 \
                 and self.state_map[coordinate[0] - 1][coordinate[1] - 1] != 3:
+            self.map[coordinate[0] - 1][coordinate[1] - 1] = 70
+            # 记录遍历的节点个数
+            self.num_total += 1
             temp = map_node()
             # 计算G和H代价
             temp.cost_g = 14 + cost_g
@@ -162,6 +175,9 @@ class find_path():
         #上:如果是可以走的点 并且不在openlist和closelist中
         if self.map[coordinate[0] - 1][coordinate[1]] == 0 \
                 and self.state_map[coordinate[0] - 1][coordinate[1]] != 3:
+            self.map[coordinate[0] - 1][coordinate[1]] = 70
+            # 记录遍历的节点个数
+            self.num_total += 1
             temp = map_node()
             # 计算G和H代价
             temp.cost_g = 10 + cost_g
@@ -188,6 +204,9 @@ class find_path():
         #右上:如果是可以走的点 并且不在openlist和closelist中
         if self.map[coordinate[0] - 1][coordinate[1] + 1] == 0 \
                 and self.state_map[coordinate[0] - 1][coordinate[1] + 1] != 3:
+            self.map[coordinate[0] - 1][coordinate[1] + 1] = 70
+            # 记录遍历的节点个数
+            self.num_total += 1
             temp = map_node()
             # 计算G和H代价
             temp.cost_g = 14 + cost_g
@@ -212,6 +231,9 @@ class find_path():
         #右:如果是可以走的点 并且不在openlist和closelist中
         if self.map[coordinate[0]][coordinate[1] + 1] == 0 \
                 and self.state_map[coordinate[0]][coordinate[1] + 1] != 3:
+            self.map[coordinate[0]][coordinate[1] + 1] = 70
+            # 记录遍历的节点个数
+            self.num_total += 1
             temp = map_node()
             # 计算G和H代价
             temp.cost_g = 10 + cost_g
@@ -236,6 +258,9 @@ class find_path():
         #右下:如果是可以走的点 并且不在openlist和closelist中
         if self.map[coordinate[0] + 1][coordinate[1] + 1] == 0 \
                 and self.state_map[coordinate[0] + 1][coordinate[1] + 1] != 3:
+            self.map[coordinate[0] + 1][coordinate[1] + 1] = 70
+            # 记录遍历的节点个数
+            self.num_total += 1
             temp = map_node()
             # 计算G和H代价
             temp.cost_g = 14 + cost_g
@@ -260,6 +285,9 @@ class find_path():
         #下:如果是可以走的点 并且不在openlist和closelist中
         if self.map[coordinate[0] + 1][coordinate[1]] == 0 \
                 and self.state_map[coordinate[0] + 1][coordinate[1]] != 3:
+            self.map[coordinate[0] + 1][coordinate[1]] = 70
+            # 记录遍历的节点个数
+            self.num_total += 1
             temp = map_node()
             # 计算G和H代价
             temp.cost_g = 10 + cost_g
@@ -284,6 +312,9 @@ class find_path():
         #左下:如果是可以走的点 并且不在openlist和closelist中
         if self.map[coordinate[0] + 1][coordinate[1] - 1] == 0 \
                 and self.state_map[coordinate[0] + 1][coordinate[1] - 1] != 3:
+            self.map[coordinate[0] + 1][coordinate[1] - 1] = 70
+            # 记录遍历的节点个数
+            self.num_total += 1
             temp = map_node()
             # 计算G和H代价
             temp.cost_g = 14 + cost_g
