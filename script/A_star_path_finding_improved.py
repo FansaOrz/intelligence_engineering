@@ -2,16 +2,17 @@
 # -*- encoding: UTF-8 -*-
 """
 本代码中的A星算法采用了八临近的方法：左右上下代价为10，斜对角线代价为14
-F = G + H
+F = G + H + D
 G代表：从起点移动到指定方格的移动代价
 H代表：从指定的方格移动到终点的估算成本（采用街区距离，只能上下左右走）
+D代表：该路径点的危险系数，以障碍物距离的远近进行评估
 """
 import datetime
 import numpy as np
 import math
 
 class find_path():
-    def __init__(self, map, robot_size):
+    def __init__(self, map, robot_size, inflation_size):
         # map是一个二维地图， start是起点坐标[]，goal是终点坐标[]
         self.map = self.extend_map(map)
         # 地图的宽度和长度
@@ -27,6 +28,10 @@ class find_path():
         self.cloase_list = []
         # 生成的路径
         self.path = []
+        # 最大判断区域的长度
+        self.max_judge_width = robot_size * 4
+        # 膨胀的半径
+        self.inflation_size = inflation_size
         # 机器人的物理大小,此处的物理大小已经变换成栅格的数量
         self.robot_size = robot_size
         # 扩展的所有的节点，最后会在地图中显示出来
@@ -42,19 +47,16 @@ class find_path():
             for j in range(self.height):
                 if self.map[i][j] == 100:
                     # 是障碍物的话就把周围的白色变灰
-                    for mi in range(2 * self.robot_size + 1):
-                        for mj in range(2 * self.robot_size + 1):
-                            if self.map[i - (self.robot_size - mi)][j - (self.robot_size - mj)] != 0:
+                    for mi in range(2 * self.inflation_size + 1):
+                        for mj in range(2 * self.inflation_size + 1):
+                            if self.map[i - (self.inflation_size - mi)][j - (self.inflation_size - mj)] != 0:
                                 continue
-                            dis = math.sqrt(math.pow(mi - self.robot_size, 2) + math.pow(mj - self.robot_size, 2))
-                            # print dis
-                            # print math.pow(i - self.robot_size, 2)
-                            # print mi - self.robot_size
+                            dis = math.sqrt(math.pow(mi - self.inflation_size, 2) + math.pow(mj - self.inflation_size, 2))
                             # 大于机器人的半径，就不变灰
-                            if dis > self.robot_size:
+                            if dis > self.inflation_size:
                                 continue
                             # 否则就变灰
-                            self.map[i - (self.robot_size - mi)][j - (self.robot_size - mj)] = 30
+                            self.map[i - (self.inflation_size - mi)][j - (self.inflation_size - mj)] = 30
         print "done"
 
     # 在地图外围扩展一圈
@@ -144,6 +146,45 @@ class find_path():
             if self.open_list[i].x == x and self.open_list[i].y == y:
                 return i
 
+    def get_current_node_D(self, x, y):
+        min_dis = 100000
+        # 判断该次循环是否找到障碍物
+        if_find_ob = False
+        # 由内往外遍历,如果找到了就退出，减少时间复杂度
+        # 一共16个环
+        for i in range(1, 8):
+            # 方环的最上面一层和最下面一层
+            for top_down_i in range(2*i+1):
+                # 如果有障碍物的话
+                if self.map[x - i, y - i + top_down_i] == 100:
+                    temp_min_dis = i * i + (top_down_i - i) * (top_down_i - i)
+                    if temp_min_dis < min_dis:
+                        if_find_ob = True
+                        min_dis = temp_min_dis
+                if self.map[x + i, y - i + top_down_i] == 100:
+                    temp_min_dis = i * i + (top_down_i - i) * (top_down_i - i)
+                    if temp_min_dis < min_dis:
+                        min_dis = temp_min_dis
+                        if_find_ob = True
+            # 剩下的左右两列
+            for left_right_i in range(1, 2*i-1):
+                if self.map[x - i + left_right_i][y - i] == 100:
+                    temp_min_dis = i * i + (left_right_i - i) * (left_right_i - i)
+                    if temp_min_dis < min_dis:
+                        min_dis = temp_min_dis
+                        if_find_ob = True
+                if self.map[x + i, y - i + left_right_i] == 100:
+                    temp_min_dis = i * i + (left_right_i - i) * (left_right_i - i)
+                    if temp_min_dis < min_dis:
+                        min_dis = temp_min_dis
+                        if_find_ob = True
+            if if_find_ob:
+                # TODO 暂时把距离当做D
+                # print "dis======", math.sqrt(min_dis)
+                return 10000/min_dis
+        # 周围都没有障碍物
+        return 0
+
     def append_around_open(self, coordinate, cost_g):
         # 周围8个点
         # 左:如果是可以走的点 并且不在closelist中
@@ -156,7 +197,8 @@ class find_path():
             # 计算G和H代价
             temp.cost_g = 10 + cost_g
             temp.cost_h = (abs(self.goal[0] - coordinate[0]) + abs(self.goal[1] - (coordinate[1] - 1))) * 10
-            temp.cost_f = temp.cost_g + temp.cost_h
+            temp.cost_d = self.get_current_node_D(coordinate[0], coordinate[1] - 1)
+            temp.cost_f = temp.cost_g + temp.cost_h + temp.cost_d
             temp.x = coordinate[0]
             temp.y = coordinate[1] - 1
             # 链接父节点
@@ -183,7 +225,8 @@ class find_path():
             # 计算G和H代价
             temp.cost_g = 14 + cost_g
             temp.cost_h = (abs(self.goal[0] - (coordinate[0] - 1)) + abs(self.goal[1] - (coordinate[1] - 1))) * 10
-            temp.cost_f = temp.cost_g + temp.cost_h
+            temp.cost_d = self.get_current_node_D(coordinate[0] - 1, coordinate[1] - 1)
+            temp.cost_f = temp.cost_g + temp.cost_h + temp.cost_d
             temp.x = coordinate[0] - 1
             temp.y = coordinate[1] - 1
             # 链接父节点
@@ -210,7 +253,8 @@ class find_path():
             # 计算G和H代价
             temp.cost_g = 10 + cost_g
             temp.cost_h = (abs(self.goal[0] - (coordinate[0] - 1)) + abs(self.goal[1] - (coordinate[1]))) * 10
-            temp.cost_f = temp.cost_g + temp.cost_h
+            temp.cost_d = self.get_current_node_D(coordinate[0] - 1, coordinate[1])
+            temp.cost_f = temp.cost_g + temp.cost_h + temp.cost_d
             temp.x = coordinate[0] - 1
             temp.y = coordinate[1]
             # 链接父节点
@@ -235,7 +279,8 @@ class find_path():
             # 计算G和H代价
             temp.cost_g = 14 + cost_g
             temp.cost_h = (abs(self.goal[0] - (coordinate[0] - 1)) + abs(self.goal[1] - (coordinate[1] + 1))) * 10
-            temp.cost_f = temp.cost_g + temp.cost_h
+            temp.cost_d = self.get_current_node_D(coordinate[0] - 1, coordinate[1] + 1)
+            temp.cost_f = temp.cost_g + temp.cost_h + temp.cost_d
             temp.x = coordinate[0] - 1
             temp.y = coordinate[1] + 1
             # 链接父节点
@@ -261,7 +306,8 @@ class find_path():
             # 计算G和H代价
             temp.cost_g = 10 + cost_g
             temp.cost_h = (abs(self.goal[0] - (coordinate[0])) + abs(self.goal[1] - (coordinate[1] + 1))) * 10
-            temp.cost_f = temp.cost_g + temp.cost_h
+            temp.cost_d = self.get_current_node_D(coordinate[0], coordinate[1] + 1)
+            temp.cost_f = temp.cost_g + temp.cost_h + temp.cost_d
             temp.x = coordinate[0]
             temp.y = coordinate[1] + 1
             # 链接父节点
@@ -287,7 +333,8 @@ class find_path():
             # 计算G和H代价
             temp.cost_g = 14 + cost_g
             temp.cost_h = (abs(self.goal[0] - (coordinate[0] + 1)) + abs(self.goal[1] - (coordinate[1] + 1))) * 10
-            temp.cost_f = temp.cost_g + temp.cost_h
+            temp.cost_d = self.get_current_node_D(coordinate[0] + 1, coordinate[1] + 1)
+            temp.cost_f = temp.cost_g + temp.cost_h + temp.cost_d
             temp.x = coordinate[0] + 1
             temp.y = coordinate[1] + 1
             # 链接父节点
@@ -313,7 +360,8 @@ class find_path():
             # 计算G和H代价
             temp.cost_g = 10 + cost_g
             temp.cost_h = (abs(self.goal[0] - (coordinate[0] + 1)) + abs(self.goal[1] - (coordinate[1]))) * 10
-            temp.cost_f = temp.cost_g + temp.cost_h
+            temp.cost_d = self.get_current_node_D(coordinate[0] + 1, coordinate[1])
+            temp.cost_f = temp.cost_g + temp.cost_h + temp.cost_d
             temp.x = coordinate[0] + 1
             temp.y = coordinate[1]
             # 链接父节点
@@ -339,7 +387,8 @@ class find_path():
             # 计算G和H代价
             temp.cost_g = 14 + cost_g
             temp.cost_h = (abs(self.goal[0] - (coordinate[0] + 1)) + abs(self.goal[1] - (coordinate[1] - 1))) * 10
-            temp.cost_f = temp.cost_g + temp.cost_h
+            temp.cost_d = self.get_current_node_D(coordinate[0] + 1, coordinate[1] - 1)
+            temp.cost_f = temp.cost_g + temp.cost_h + temp.cost_d
             temp.x = coordinate[0] + 1
             temp.y = coordinate[1] - 1
             # 链接父节点
@@ -366,9 +415,11 @@ class map_node():
     def __init__(self):
         self.x = 0
         self.y = 0
+        # 总代价
         self.cost_f = 0
         self.cost_g = 0
         self.cost_h = 0
+        self.cost_d = 0
         self.parent = [0,0]
         self.state = 0
 

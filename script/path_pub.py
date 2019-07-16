@@ -4,7 +4,7 @@ import rospy
 import time
 import numpy as np
 from scipy import interpolate
-import A_star_path_finding as A_star
+import A_star_path_finding_improved as A_star
 import Dijkstra_path_finding as Dij
 from nav_msgs.msg import Path, OccupancyGrid
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
@@ -125,7 +125,7 @@ class path_pub():
         self.map_msg = msg
         raw = np.array(msg.data, dtype=np.int8)
         self.map = raw.reshape((self.height, self.width))
-        self.Dij_find_path = A_star.find_path(self.map, robot_size=0)
+        self.Dij_find_path = A_star.find_path(self.map, robot_size=8, inflation_size=2)
         self.map_sub.unregister()
 
     def init_pose_callback(self, msg):
